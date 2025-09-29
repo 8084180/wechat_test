@@ -1,0 +1,101 @@
+function getBuySellUSDT() {
+    let totalBuyUSDT = 0;
+    let totalSellUSDT = 0;
+
+    const rows = document.querySelectorAll('tr');
+    const nowUTC = new Date();
+    const utcDateStr = nowUTC.toISOString().split('T')[0];
+
+    rows.forEach(row => {
+        const timeCell = row.querySelector('td[aria-colindex="1"]');
+        const typeCell = row.querySelector('td[aria-colindex="3"]');
+        const sideCell = row.querySelector('td[aria-colindex="4"]');
+        const statusCell = row.querySelector('td[aria-colindex="10"]');
+        const usdtCell = row.querySelector('td[aria-colindex="9"]');
+
+        if (!timeCell || !typeCell || !sideCell || !statusCell || !usdtCell) return;
+
+        const orderType = typeCell.innerText.trim();
+        const side = sideCell.innerText.trim();
+        const status = statusCell.innerText.trim();
+        const usdtStr = usdtCell.innerText.trim();
+        const localTimeStr = timeCell.innerText.trim();
+      
+        const parsedDate = new Date(localTimeStr.replace(/-/g, '/'));
+        const utcDateOnly = parsedDate.toISOString().split('T')[0];
+
+        if (orderType === "限价" && status === "已成交" && utcDateOnly === utcDateStr) {
+            const usdtValue = parseFloat(usdtStr.replace(/[^\d.]/g, "").trim());
+
+            if (isNaN(usdtValue)) return;
+
+            if (side === "买入") {
+                totalBuyUSDT += usdtValue;
+            } else if (side === "卖出") {
+                totalSellUSDT += usdtValue;
+            }
+        }
+    });
+
+    return { totalBuyUSDT, totalSellUSDT };
+}
+
+
+async function getTotalAcrossAllPages() {
+    let totalBuy = 0;
+    let totalSell = 0;
+
+    const allButtons = [...document.querySelectorAll('.bn-pagination-item')].filter(btn => !btn.classList.contains('active'));
+    const seenPages = new Set();
+
+    const result = getBuySellUSDT();
+    totalBuy += result.totalBuyUSDT;
+    totalSell += result.totalSellUSDT;
+
+    for (const btn of allButtons) {
+        const pageNumber = btn.innerText.trim();
+        if (seenPages.has(pageNumber) || !pageNumber) continue;
+        seenPages.add(pageNumber);
+
+        btn.click();
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const res = getBuySellUSDT();
+        totalBuy += res.totalBuyUSDT;
+        totalSell += res.totalSellUSDT;
+    }
+
+    const slippage = totalSell - totalBuy - totalSell * 0.0001;
+
+    return {
+        buy: totalBuy,
+        sell: totalSell,
+        loss: slippage
+    };
+}
+
+const result = await getTotalAcrossAllPages();
+
+const point = Math.floor(Math.log2(4 * result.buy));
+
+const toBuyUSDT = Math.pow(2, point + 1) / 4 - result.buy;
+
+console.log(`%c                                 
+                                          推特 https://x.com/intent/follow?screen_name=ethan_tonvox
+
+                                          网站 https://tonvox.com
+
+
+                                          当日交易额：${result.buy.toFixed(2)} USDT
+
+                                          当前积分：${point}
+
+                                          损耗：${result.loss.toFixed(2)} USDT
+
+                                          离 ${point + 1} 积分还差：${toBuyUSDT.toFixed(2)} USDT
+
+
+                                          TG群 https://t.me/+SFnm-gKCPClmNjVl
+  `,
+                                                       
+                'color: blue; font-weight: bold; padding: 4px; font-size: 20px;');
